@@ -315,7 +315,7 @@ export default function App() {
       <div className="topbar">
         <div>
           <div className="title">Roblox Video Converter</div>
-          <div className="subtitle">Web version (Vercel). Runs locally in your browser.</div>
+          <div className="subtitle">Web version. Runs locally in your browser.</div>
         </div>
 
         <div className={"status " + (busy ? "processing" : "idle")}>
