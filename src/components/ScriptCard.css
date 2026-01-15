@@ -1,0 +1,66 @@
+.scriptCard{
+  margin-top:12px;
+  padding:14px;
+  border-radius:14px;
+  border:1px solid var(--border);
+  background:rgba(255,255,255,.05);
+}
+
+.scriptHeader{
+  margin-bottom:10px;
+}
+
+.scriptTitle{
+  font-size:13px;
+  font-weight:950;
+  letter-spacing:.18px;
+  text-transform:uppercase;
+  color:rgba(255,255,255,.90);
+}
+
+.scriptSub{
+  margin-top:6px;
+  font-size:12px;
+  color:var(--muted);
+  line-height:1.4;
+}
+
+.scriptButtons{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-bottom:12px;
+}
+
+.scriptInstructions{
+  border-top:1px solid var(--border);
+  padding-top:12px;
+}
+
+.instTitle{
+  font-size:12px;
+  font-weight:950;
+  text-transform:uppercase;
+  letter-spacing:.18px;
+  margin-bottom:8px;
+  color:rgba(255,255,255,.86);
+}
+
+.instList{
+  margin:0;
+  padding-left:18px;
+  color:rgba(255,255,255,.78);
+  font-size:12.5px;
+  line-height:1.55;
+}
+
+.instList li{
+  margin:6px 0;
+}
+
+.instTip{
+  margin-top:10px;
+  font-size:12px;
+  color:rgba(255,255,255,.62);
+  line-height:1.45;
+}

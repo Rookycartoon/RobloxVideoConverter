@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import ScriptCard from "./components/ScriptCard";
 import "./App.css";
 
 export default function App() {
@@ -35,8 +36,7 @@ export default function App() {
     return "heavy";
   }, [blocksCount, fps]);
 
-  const perfText =
-    perf === "ok" ? "Light" : perf === "med" ? "Medium" : "Heavy";
+  const perfText = perf === "ok" ? "Light" : perf === "med" ? "Medium" : "Heavy";
 
   function appendLog(s) {
     setLog((prev) => prev + s + "\n");
@@ -51,13 +51,28 @@ export default function App() {
   }
 
   function downloadText(filename, text) {
-    const blob = new Blob([text], { type: "text/plain" });
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
     const url = URL.createObjectURL(blob);
+
     const a = document.createElement("a");
     a.href = url;
     a.download = filename;
+
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  }
+
+  // ✅ Downloads the script stored in /public/RobloxScript.txt
+  async function downloadPublicScript() {
+    const res = await fetch("/RobloxScript.txt");
+    if (!res.ok) throw new Error("RobloxScript.txt not found in /public folder");
+
+    const text = await res.text();
+    downloadText("RobloxPlayer.lua", text);
+    appendLog("RobloxPlayer.lua downloaded.");
   }
 
   function quantize(v, step) {
@@ -130,7 +145,6 @@ export default function App() {
   }
 
   async function seekTo(video, time) {
-    // Seeking needs a tiny delay sometimes for accurate frame
     video.currentTime = time;
     await new Promise((res) => {
       const onSeeked = () => {
@@ -215,7 +229,9 @@ export default function App() {
       setProgress({ done: 0, total: totalFrames });
 
       appendLog("Starting conversion...");
-      appendLog(`Settings: fps=${fps} size=${outW}x${outH} block=${block} seconds=${duration.toFixed(2)}`);
+      appendLog(
+        `Settings: fps=${fps} size=${outW}x${outH} block=${block} seconds=${duration.toFixed(2)}`
+      );
       appendLog(`Grid: ${gW}x${gH}`);
 
       // ensure video is ready
@@ -235,7 +251,6 @@ export default function App() {
         const t = f / fps;
         await seekTo(v, t);
 
-        // draw frame into canvas
         ctx.clearRect(0, 0, outW, outH);
         ctx.drawImage(v, 0, 0, outW, outH);
 
@@ -263,22 +278,18 @@ export default function App() {
           prevGrid = grid;
         }
 
-        // progress
         setProgress({ done: f + 1, total: totalFrames });
 
-        // ETA update every ~450ms
         const now = performance.now();
         if (now - lastEtaUpdate > 450 && f >= 5) {
           lastEtaUpdate = now;
           const elapsed = (now - start) / 1000;
           const speed = (f + 1) / Math.max(elapsed, 0.001);
           const remaining = totalFrames - (f + 1);
-          const est = remaining / Math.max(speed, 0.01);
-          setEta(est);
+          setEta(remaining / Math.max(speed, 0.01));
         }
 
         if (f % 25 === 0) appendLog(`Progress: ${f + 1}/${totalFrames}`);
-        // let UI breathe
         if (f % 5 === 0) await sleep(1);
       }
 
@@ -307,169 +318,183 @@ export default function App() {
     }
   }
 
-  const progressPct =
-    progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
+  const progressPct = progress.total > 0 ? Math.round((progress.done / progress.total) * 100) : 0;
 
   return (
-    <div className="shell">
-      <div className="topbar">
-        <div>
-          <div className="title">Roblox Video Converter</div>
-          <div className="subtitle">Web version. Runs locally in your browser.</div>
+    <>
+      <div className="shell">
+        <div className="topbar">
+          <div>
+            <div className="title">Roblox Video Converter</div>
+            <div className="subtitle">Web version. Runs locally in your browser.</div>
+          </div>
+
+          <div className={"status " + (busy ? "processing" : "idle")}>
+            <span className="dot" />
+            {status}
+          </div>
         </div>
 
-        <div className={"status " + (busy ? "processing" : "idle")}>
-          <span className="dot" />
-          {status}
-        </div>
-      </div>
-
-      <div className="layout">
-        {/* Left */}
-        <div className="panel">
-          <div className="panelHeader">
-            <div className="panelTitle">Input</div>
-            <div className="panelHint">Upload a video file. Conversion happens fully in your browser.</div>
-          </div>
-
-          <div className="row">
-            <label className="fileBtn">
-              Upload Video
-              <input
-                type="file"
-                accept="video/*"
-                disabled={busy}
-                onChange={async (e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  setFile(f);
-                  await loadVideoFromFile(f);
-                }}
-              />
-            </label>
-
-            <button className="btn primary" onClick={convert} disabled={busy || !file}>
-              {busy ? "Converting..." : "Convert and Download Lua"}
-            </button>
-          </div>
-
-          <div className="pathBox" title={file?.name || "No file selected"}>
-            {file ? file.name : "No file selected"}
-          </div>
-
-          <div className="section">
-            <div className="sectionTitle">Presets</div>
-            <div className="tabs">
-              <button className="tab" onClick={() => applyPreset("fast")} disabled={busy}>Fast</button>
-              <button className="tab active" onClick={() => applyPreset("balanced")} disabled={busy}>Balanced</button>
-              <button className="tab" onClick={() => applyPreset("high")} disabled={busy}>High</button>
-              <button className="tab" onClick={() => applyPreset("ultra")} disabled={busy}>Ultra</button>
+        <div className="layout">
+          {/* Left */}
+          <div className="panel">
+            <div className="panelHeader">
+              <div className="panelTitle">Input</div>
+              <div className="panelHint">
+                Upload a video file. Conversion happens fully in your browser.
+              </div>
             </div>
-          </div>
 
-          <div className="section">
-            <div className="sectionTitle">Settings</div>
+            <div className="row" style={{ marginTop: 12 }}>
+              <label className="fileBtn">
+                Upload Video
+                <input
+                  type="file"
+                  accept="video/*"
+                  disabled={busy}
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    setFile(f);
+                    await loadVideoFromFile(f);
+                  }}
+                />
+              </label>
 
-            <div className="grid">
-              <div className="field">
-                <label>FPS</label>
-                <select value={fps} onChange={(e) => setFps(Number(e.target.value))} disabled={busy}>
-                  <option value={10}>10</option>
-                  <option value={15}>15</option>
-                  <option value={20}>20</option>
-                </select>
+              <button className="btn primary" onClick={convert} disabled={busy || !file}>
+                {busy ? "Converting..." : "Convert and Download Lua"}
+              </button>
+            </div>
+
+            <div className="pathBox" title={file?.name || "No file selected"}>
+              {file ? file.name : "No file selected"}
+            </div>
+
+            <div className="section">
+              <div className="sectionTitle">Presets</div>
+              <div className="tabs">
+                <button className="tab" onClick={() => applyPreset("fast")} disabled={busy}>
+                  Fast
+                </button>
+                <button className="tab active" onClick={() => applyPreset("balanced")} disabled={busy}>
+                  Balanced
+                </button>
+                <button className="tab" onClick={() => applyPreset("high")} disabled={busy}>
+                  High
+                </button>
+                <button className="tab" onClick={() => applyPreset("ultra")} disabled={busy}>
+                  Ultra
+                </button>
               </div>
+            </div>
 
-              <div className="field">
-                <label>Base Width</label>
-                <input type="number" value={baseW} onChange={(e) => setBaseW(Number(e.target.value))} disabled={busy} />
-              </div>
+            <div className="section">
+              <div className="sectionTitle">Settings</div>
 
-              <div className="field">
-                <label>Base Height</label>
-                <input type="number" value={baseH} onChange={(e) => setBaseH(Number(e.target.value))} disabled={busy} />
-              </div>
+              <div className="grid">
+                <div className="field">
+                  <label>FPS</label>
+                  <select value={fps} onChange={(e) => setFps(Number(e.target.value))} disabled={busy}>
+                    <option value={10}>10</option>
+                    <option value={15}>15</option>
+                    <option value={20}>20</option>
+                  </select>
+                </div>
 
-              <div className="field">
-                <label>Block Size</label>
-                <div className="sliderRow">
-                  <input type="range" min="2" max="12" step="1" value={block} onChange={(e) => setBlock(Number(e.target.value))} disabled={busy} />
-                  <span className="pill">{block}</span>
+                <div className="field">
+                  <label>Base Width</label>
+                  <input type="number" value={baseW} onChange={(e) => setBaseW(Number(e.target.value))} disabled={busy} />
+                </div>
+
+                <div className="field">
+                  <label>Base Height</label>
+                  <input type="number" value={baseH} onChange={(e) => setBaseH(Number(e.target.value))} disabled={busy} />
+                </div>
+
+                <div className="field">
+                  <label>Block Size</label>
+                  <div className="sliderRow">
+                    <input type="range" min="2" max="12" step="1" value={block} onChange={(e) => setBlock(Number(e.target.value))} disabled={busy} />
+                    <span className="pill">{block}</span>
+                  </div>
+                </div>
+
+                <div className="field">
+                  <label>Max Seconds</label>
+                  <input type="number" value={maxSeconds} onChange={(e) => setMaxSeconds(Number(e.target.value))} disabled={busy} />
+                </div>
+
+                <div className="field">
+                  <label>Quant Step</label>
+                  <div className="sliderRow">
+                    <input type="range" min="2" max="32" step="2" value={quantStep} onChange={(e) => setQuantStep(Number(e.target.value))} disabled={busy} />
+                    <span className="pill">{quantStep}</span>
+                  </div>
                 </div>
               </div>
+            </div>
+          </div>
 
-              <div className="field">
-                <label>Max Seconds</label>
-                <input type="number" value={maxSeconds} onChange={(e) => setMaxSeconds(Number(e.target.value))} disabled={busy} />
+          {/* Right */}
+          <div className="panel">
+            <div className="panelHeader">
+              <div className="panelTitle">Output</div>
+              <div className="panelHint">Progress and estimated performance impact in Roblox.</div>
+            </div>
+
+            <div className="cards">
+              <div className="infoCard">
+                <div className="infoTitle">Grid</div>
+                <div className="infoValue">{gridW} × {gridH}</div>
+                <div className="infoSub">{blocksCount} blocks per frame</div>
               </div>
 
-              <div className="field">
-                <label>Quant Step</label>
-                <div className="sliderRow">
-                  <input type="range" min="2" max="32" step="2" value={quantStep} onChange={(e) => setQuantStep(Number(e.target.value))} disabled={busy} />
-                  <span className="pill">{quantStep}</span>
+              <div className="infoCard">
+                <div className="infoTitle">Load</div>
+                <div className={"infoValue " + perf}>{perfText}</div>
+                <div className="infoSub">Roblox playback cost</div>
+              </div>
+
+              <div className="infoCard">
+                <div className="infoTitle">ETA</div>
+                <div className="infoValue">{busy ? formatTime(eta) : "--:--"}</div>
+                <div className="infoSub">{busy ? "Estimated remaining time" : "Idle"}</div>
+              </div>
+            </div>
+
+            <div className="progressWrap">
+              <div className="progressTop">
+                <div className="progressText">
+                  {busy
+                    ? `Processing ${progress.done}/${progress.total} (${progressPct}%)`
+                    : "Ready"}
                 </div>
+                <div className="progressStage">{busy ? "running" : "idle"}</div>
               </div>
+
+              <div className="progressBar">
+                <div className="progressFill" style={{ width: busy ? `${progressPct}%` : "0%" }} />
+              </div>
+            </div>
+
+            <div className="log">
+              <div className="logHeader">Log</div>
+              <textarea value={log} readOnly />
+            </div>
+
+            <div className="footnote">
+              Larger resolution and lower block size increases quality but raises runtime cost.
             </div>
           </div>
         </div>
 
-        {/* Right */}
-        <div className="panel">
-          <div className="panelHeader">
-            <div className="panelTitle">Output</div>
-            <div className="panelHint">Progress and estimated performance impact in Roblox.</div>
-          </div>
-
-          <div className="cards">
-            <div className="infoCard">
-              <div className="infoTitle">Grid</div>
-              <div className="infoValue">{gridW} × {gridH}</div>
-              <div className="infoSub">{blocksCount} blocks per frame</div>
-            </div>
-
-            <div className="infoCard">
-              <div className="infoTitle">Load</div>
-              <div className={"infoValue " + perf}>{perfText}</div>
-              <div className="infoSub">Roblox playback cost</div>
-            </div>
-
-            <div className="infoCard">
-              <div className="infoTitle">ETA</div>
-              <div className="infoValue">{busy ? formatTime(eta) : "--:--"}</div>
-              <div className="infoSub">{busy ? "Estimated remaining time" : "Idle"}</div>
-            </div>
-          </div>
-
-          <div className="progressWrap">
-            <div className="progressTop">
-              <div className="progressText">
-                {busy
-                  ? `Processing ${progress.done}/${progress.total} (${progressPct}%)`
-                  : "Ready"}
-              </div>
-              <div className="progressStage">{busy ? "running" : "idle"}</div>
-            </div>
-
-            <div className="progressBar">
-              <div className="progressFill" style={{ width: busy ? `${progressPct}%` : "0%" }} />
-            </div>
-          </div>
-
-          <div className="log">
-            <div className="logHeader">Log</div>
-            <textarea value={log} readOnly />
-          </div>
-
-          <div className="footnote">
-            Larger resolution and lower block size increases quality but raises runtime cost.
-          </div>
-        </div>
+        {/* Hidden workers */}
+        <video ref={videoRef} style={{ display: "none" }} crossOrigin="anonymous" />
+        <canvas ref={canvasRef} style={{ display: "none" }} />
       </div>
 
-      {/* Hidden workers */}
-      <video ref={videoRef} style={{ display: "none" }} crossOrigin="anonymous" />
-      <canvas ref={canvasRef} style={{ display: "none" }} />
-    </div>
+      {/* ✅ ScriptCard placed on LEFT column */}
+      <ScriptCard onDownload={downloadPublicScript} />
+    </>
   );
 }
